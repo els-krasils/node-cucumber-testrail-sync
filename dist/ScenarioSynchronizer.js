@@ -488,8 +488,10 @@ class ScenarioSynchronizer {
      */
     pushTestCaseToTestRail(testcase, gherkin) {
         const gherkinSteps = gherkin.split('\n')
-            .slice(3)
-            .map(Function.prototype.call, String.prototype.trim);
+            .map(Function.prototype.call, String.prototype.trim)
+            .filter(l => !l.startsWith('Feature'))
+            .filter(l => !l.startsWith('@'))
+            .filter(l => !l.startsWith('Scenario'));
         const customGherkin = this.formatter.replaceTablesByMultiPipesTables(gherkinSteps.join('\n'));
         if (testcase.custom_steps && testcase.custom_steps.length > 0) {
             return this.testrailClient.updateCase(testcase.case_id, { custom_steps: customGherkin });
