@@ -1,0 +1,9 @@
+var cucumber = require('cucumber');
+
+cucumber.defineSupportCode((ctx) => {
+{{#steps}}  ctx.{{keyword}}({{{pattern}}}, ({{params}}) => {
+		callback(null, 'pending');
+	});
+
+{{/steps}}
+});

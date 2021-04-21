@@ -1,0 +1,9 @@
+import {defineSupportCode} from 'cucumber';
+
+defineSupportCode((ctx: any): void => {
+{{#steps}}	ctx.{{keyword}}({{{pattern}}}, ({{params}}): void => {
+		callback(null, 'pending');
+	});
+
+{{/steps}}
+});
