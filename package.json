@@ -1,6 +1,6 @@
 {
   "name": "@gromalog/cucumber-testrail-sync",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Synchronize test cases from TestRail & push Cucumber results",
   "bin": {
     "cucumber-testrail-sync": "./dist/bin/sync-test-cases.js",
