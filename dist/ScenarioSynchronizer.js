@@ -434,11 +434,13 @@ class ScenarioSynchronizer {
         };
         let tags = `${this.config.indent}@tcid:${testcase.case_id}\n`;
         tags += `${this.config.indent}@${STATUSES[testcase.status_id]}\n`;
-        console.log(JSON.stringify(testcase, undefined, 4))
         if (testcase.results !== undefined) {
             for (let [i, result] of testcase.results.entries()) {
                 if (i === 0) {
                     console.log(`${Math.floor(Date.now() / 1000)} - ${result.created_on} = ${Math.floor(Date.now() / 1000) - result.created_on}`)
+                    if (Math.floor(Date.now() / 1000) - result.created_on > 15 * 60 * 60) {
+                        tags += `${this.config.indent}@resultOlder15h\n`;
+                    }
                     if (Math.floor(Date.now() / 1000) - result.created_on > 12 * 60 * 60) {
                         tags += `${this.config.indent}@resultOlder12h\n`;
                     }
