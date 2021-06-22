@@ -347,6 +347,7 @@ class ScenarioSynchronizer {
             if (this.config.tagResults) {
                 for (let test of testcases) {
                     test.results = yield this.testrailClient.getResults(test.id, {limit: 3})
+                    yield new Promise(f => setTimeout(f, 350))
                 }
             }
             return testcases.filter((t) => !statuses || statuses.indexOf(t.custom_status) !== -1);
