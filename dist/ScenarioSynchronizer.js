@@ -60,7 +60,8 @@ class ScenarioSynchronizer {
                 findUnused: Joi.boolean().default(false),
                 pushResults: Joi.boolean().default(false),
                 debug: Joi.boolean().default(false),
-                newTestCase: Joi.object()
+                newTestCase: Joi.object(),
+                tagResults: Joi.boolean().default(false)
             });
             this.config = _.defaultsDeep(config, defaultConfig);
             this.templateDir = path.resolve(__dirname, '..', 'templates');
@@ -343,6 +344,11 @@ class ScenarioSynchronizer {
                     }
                 }
             }
+            if (this.config.tagResults) {
+                for (let test of testcases) {
+                    test.results = yield this.testrailClient.getResults(test.id, {limit: 3})
+                }
+            }
             return testcases.filter((t) => !statuses || statuses.indexOf(t.custom_status) !== -1);
         });
     }
@@ -428,6 +434,29 @@ class ScenarioSynchronizer {
         };
         let tags = `${this.config.indent}@tcid:${testcase.case_id}\n`;
         tags += `${this.config.indent}@${STATUSES[testcase.status_id]}\n`;
+        console.log(JSON.stringify(testcase, undefined, 4))
+        if (testcase.results !== undefined) {
+            for (let [i, result] of testcase.results.entries()) {
+                if (i === 0) {
+                    console.log(`${Math.floor(Date.now() / 1000)} - ${result.created_on} = ${Math.floor(Date.now() / 1000) - result.created_on}`)
+                    if (Math.floor(Date.now() / 1000) - result.created_on > 12 * 60 * 60) {
+                        tags += `${this.config.indent}@resultOlder12h\n`;
+                    }
+                    if (Math.floor(Date.now() / 1000) - result.created_on > 3 * 60 * 60) {
+                        tags += `${this.config.indent}@resultOlder3h\n`;
+                    }
+                    if (Math.floor(Date.now() / 1000) - result.created_on > 1 * 60 * 60) {
+                        tags += `${this.config.indent}@resultOlder1h\n`;
+                    }
+                    if (Math.floor(Date.now() / 1000) - result.created_on > 30 * 60) {
+                        tags += `${this.config.indent}@resultOlder30m\n`;
+                    }
+                    if (Math.floor(Date.now() / 1000) - result.created_on > 10 * 60) {
+                        tags += `${this.config.indent}@resultOlder10m\n`;
+                    }
+                }
+            }
+        }
         return tags;
     }
     /**

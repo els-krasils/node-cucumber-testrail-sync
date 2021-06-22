@@ -13,6 +13,7 @@ program
     .option('--debug', 'Debug')
     .option('--pull', 'Pull test cases from TestRail to the local filesystem')
     .option('--push', 'Push test cases from the local filesystem to TestRail')
+    .option('--tagResults', 'Add tags based on latest test results')
     .parse(process.argv);
 
 const sync = new ScenarioSynchronizer();
@@ -22,6 +23,7 @@ config.verify = (<any> program).verify || config.verify || false;
 config.findUnused = (<any> program).unused || config.findUnused || false;
 config.silent = (<any> program).silent || config.silent || false;
 config.debug = (<any> program).debug || config.debug || false;
+config.tagResults = (<any> program).tagResults || config.tagResults || false;
 
 if ((<any> program).pull) {
     config.overwrite = {
