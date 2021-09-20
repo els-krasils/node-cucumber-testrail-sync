@@ -106,7 +106,7 @@ class ResultSynchronizer {
                 let doBreak = false;
                 for (const planentry of plan.entries) {
                     for (const run of planentry.runs) {
-                        const testcases = yield testrailClient.getTests(run.id);
+                        const testcases = (yield testrailClient.getTests(run.id)).tests;
                         const cases = testcases.filter((t) => {
                             return t.case_id === testcaseId;
                         });
@@ -134,7 +134,7 @@ class ResultSynchronizer {
             const runs = {};
             if (this.config.testrail.filters.run_id) {
                 const runId = this.config.testrail.filters.run_id;
-                const testcases = yield this.testrailClient.getTests(runId);
+                const testcases = (yield this.testrailClient.getTests(runId)).tests;
                 runs[runId] = {
                     cases: testcases.map((t) => t.case_id)
                 };
@@ -143,7 +143,7 @@ class ResultSynchronizer {
                 const plan = yield this.testrailClient.getPlan(this.config.testrail.filters.plan_id);
                 for (const planentry of plan.entries) {
                     for (const run of planentry.runs) {
-                        const testcases = yield this.testrailClient.getTests(run.id);
+                        const testcases = (yield this.testrailClient.getTests(run.id)).tests;
                         runs[run.id] = {
                             cases: testcases.map((t) => t.case_id)
                         };
