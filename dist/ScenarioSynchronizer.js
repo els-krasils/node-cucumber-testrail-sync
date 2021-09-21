@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const TestrailApiClient = require("testrail-api");
+const TestrailApiClient = require("./TestrailApiClient");
 const path = require("path");
 const chalk = require("chalk");
 const jsdiff = require("diff");
@@ -175,13 +175,13 @@ class ScenarioSynchronizer {
             if (!this.plan.entries || this.plan.entries.length === 0 || !this.plan.entries[0].runs || this.plan.entries[0].runs.length === 0) {
                 return Promise.reject(new Error('The Test Plan should contain at least one Test Run.'));
             }
-            const cases = (yield this.testrailClient.getCases(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id })).cases;
+            let cases = yield this.testrailClient.getAllCases(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id } )
             this.caseSections = {};
             for (let i = 0; i < cases.length; i++) {
                 const caseId = cases[i].id;
                 this.caseSections[caseId] = cases[i].section_id;
             }
-            const sections = (yield this.testrailClient.getSections(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id })).sections;
+            const sections = yield this.testrailClient.getAllSections(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id });
             this.sectionTree = {};
             for (let i = 0; i < sections.length; i++) {
                 const sectionId = sections[i].id;
@@ -328,7 +328,7 @@ class ScenarioSynchronizer {
             }
             let testcases = [];
             if (this.config.testrail.filters.run_id) {
-                testcases = (yield this.testrailClient.getTests(this.config.testrail.filters.run_id)).tests;
+                testcases = yield this.testrailClient.getAllTests(this.config.testrail.filters.run_id);
                 this.debug(`Found #${testcases.length} cases on TestRail for run_id = ${this.config.testrail.filters.run_id}`);
                 // all runs in a test plan
             }
@@ -336,7 +336,7 @@ class ScenarioSynchronizer {
                 let uniqueCaseIds = [];
                 for (const planentry of this.plan.entries) {
                     for (const run of planentry.runs) {
-                        const testcasesOfRun = (yield this.testrailClient.getTests(run.id)).tests;
+                        const testcasesOfRun = yield this.testrailClient.getAllTests(run.id);
                         this.debug(`Found #${testcasesOfRun.length} cases on TestRail for run_id = ${run.id}`);
                         const newTestcases = testcasesOfRun.filter((t) => uniqueCaseIds.indexOf(t.case_id) === -1);
                         testcases = testcases.concat(newTestcases);
@@ -406,7 +406,7 @@ class ScenarioSynchronizer {
                 }
             }
             for (const run of planEntry.runs) {
-                const testcasesOfRun = (yield this.testrailClient.getTests(run.id)).tests;
+                const testcasesOfRun = yield this.testrailClient.getAllTests(run.id);
                 caseIds = caseIds.concat(testcasesOfRun.map((t) => t.case_id));
             }
             const content = {
