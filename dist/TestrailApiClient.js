@@ -9,10 +9,10 @@ class TestrailApiClient extends TestrailApi {
         for (let page = 0; page < maxPages; page++) {
             filters.offset = page * pageSize
             let res = await this[methodName](container_id, filters)
-            if (res.size === 0) {
+            Array.prototype.push.apply(items, res[dataField])
+            if (res.size < pageSize) {
                 break
             }
-            Array.prototype.push.apply(items, res[dataField])
         }
         return items
     }
