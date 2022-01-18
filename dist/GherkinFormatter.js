@@ -1,4 +1,5 @@
 "use strict";
+let {decode: decodeHtml} = require('html-entities').AllHtmlEntities;
 Object.defineProperty(exports, "__esModule", { value: true });
 class GherkinFormatter {
     /**
@@ -29,16 +30,18 @@ class GherkinFormatter {
         return (lines.length === validLines.length + numLinesWithData);
     }
     getGherkinFromTestcase(testcase) {
+        let result = '';
         if (testcase.custom_gherkin && testcase.custom_gherkin.length > 0) {
-            return testcase.custom_gherkin;
+            result = testcase.custom_gherkin;
         }
         else if (testcase.custom_steps && testcase.custom_steps.length > 0) {
-            return testcase.custom_steps;
+            result = testcase.custom_steps;
         }
         else if (testcase.custom_steps_separated && testcase.custom_steps_separated.length > 0) {
-            return testcase.custom_steps_separated.map((s) => s.content).join('\n');
+            result = testcase.custom_steps_separated.map((s) => s.content).join('\n');
         }
-        return '';
+        result = decodeHtml(result);
+        return result;
     }
     /**
      * Split the gherkin content from TestRail into lines
