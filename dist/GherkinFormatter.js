@@ -40,34 +40,35 @@ class GherkinFormatter {
         else if (testcase.custom_steps_separated && testcase.custom_steps_separated.length > 0) {
             result = testcase.custom_steps_separated.map((s) => s.content).join('\n');
         }
+        // testrail stores symbols like "<" and ">" html encoded: "&lt;" and "&gt;"
         result = decodeHtml(result);
         return result;
     }
     /**
      * Split the gherkin content from TestRail into lines
      */
-    formatLinesFromTestrail(testcase) {
+    formatLinesFromTestrail(testcase, {capitalizeStepsFirstChar = true} = {}) {
         const arr = this.getGherkinFromTestcase(testcase).replace(/[\r]/g, '').split('\n')
             .map(Function.prototype.call, String.prototype.trim)
             .map((line) => {
-            // replace ” by "
-            return line.replace(/”/g, '"');
-        })
+                // replace ” by "
+                return line.replace(/”/g, '"');
+            })
             .map((line) => {
-            // remove extra spaces
-            // convert the first character to uppercase
-            return line.replace(/^(Given|When|Then|And)\s+(\w)/i, (match, first, second) => {
-                return first.charAt(0).toUpperCase() + first.slice(1) + ' ' + second.toUpperCase();
-            });
-        })
+                // remove extra spaces
+                // convert the first character to uppercase
+                return line.replace(/^(Given|When|Then|And)\s+(\w)/i, (match, first, second) => {
+                    return first.charAt(0).toUpperCase() + first.slice(1) + ' ' + (capitalizeStepsFirstChar ? second.toUpperCase() : second);
+                });
+            })
             .filter((line) => line.length > 0 && line.indexOf('Scenario:') !== 0)
             // replace line like: |:header1|:header2| by |header1|header2|
             .map((line) => {
-            if (line[0] !== '|') {
-                return line;
-            }
-            return line.replace(/\|:/g, '|');
-        });
+                if (line[0] !== '|') {
+                    return line;
+                }
+                return line.replace(/\|:/g, '|');
+            });
         // insert a blank line before Examples
         for (let i = arr.length - 1; i > 0; i--) {
             if (arr[i].indexOf('Examples') === 0) {

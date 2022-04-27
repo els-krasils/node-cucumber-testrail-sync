@@ -18,7 +18,6 @@ const _ = require("lodash");
 const Joi = require("joi");
 const walk = require("walkdir");
 const uniquefilename = require("uniquefilename");
-const mkdirp = require("mkdirp");
 const Handlebars = require("handlebars");
 const GherkinFormatter_1 = require("./GherkinFormatter");
 class ScenarioSynchronizer {
@@ -40,6 +39,9 @@ class ScenarioSynchronizer {
                     verifyFilters: {
                         custom_status: Joi.array().items(Joi.number())
                     }
+                },
+                gherkinFormatterOptions: {
+                    capitalizeStepsFirstChar: Joi.boolean().default(true),
                 },
                 featuresDir: Joi.string().required(),
                 stepDefinitionsDir: Joi.string().required(),
@@ -79,7 +81,7 @@ class ScenarioSynchronizer {
                     }
                 }
                 else if (this.config.verify === true) {
-                    yield this.fetchTestPlanAndSections();
+                    yield this.fetchTestPlan();
                     yield this.findImportedTestcases();
                     const errors = yield this.verifySync();
                     if (errors.length) {
@@ -90,7 +92,7 @@ class ScenarioSynchronizer {
                     }
                 }
                 else {
-                    yield this.fetchTestPlanAndSections();
+                    yield this.fetchTestPlan();
                     yield this.findImportedTestcases();
                     yield this.findImplementedStepDefinitions();
                     yield this.synchronizePlan();
@@ -168,29 +170,12 @@ class ScenarioSynchronizer {
             });
         });
     }
-    fetchTestPlanAndSections() {
+    fetchTestPlan() {
         return __awaiter(this, void 0, void 0, function* () {
             this.testrailClient = new TestrailApiClient(this.config.testrail);
             this.plan = yield this.testrailClient.getPlan(this.config.testrail.filters.plan_id);
             if (!this.plan.entries || this.plan.entries.length === 0 || !this.plan.entries[0].runs || this.plan.entries[0].runs.length === 0) {
                 return Promise.reject(new Error('The Test Plan should contain at least one Test Run.'));
-            }
-            let cases = yield this.testrailClient.getAllCases(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id } )
-            this.caseSections = {};
-            for (let i = 0; i < cases.length; i++) {
-                const caseId = cases[i].id;
-                this.caseSections[caseId] = cases[i].section_id;
-            }
-            const sections = yield this.testrailClient.getAllSections(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id });
-            this.sectionTree = {};
-            for (let i = 0; i < sections.length; i++) {
-                const sectionId = sections[i].id;
-                const node = {
-                    name: sections[i].name,
-                    slug: this.slugify(sections[i].name),
-                    parent_id: sections[i].parent_id
-                };
-                this.sectionTree[sectionId] = node;
             }
             return Promise.resolve();
         });
@@ -224,7 +209,7 @@ class ScenarioSynchronizer {
     findImplementedStepDefinitionsJS() {
         return __awaiter(this, void 0, void 0, function* () {
             this.implementedSteps = [];
-            mkdirp.sync(this.config.stepDefinitionsDir);
+            fs.mkdirSync(this.config.stepDefinitionsDir, {recursive: true})
             const foldersToScan = [
                 path.resolve(this.config.stepDefinitionsDir),
                 path.resolve(this.config.stepDefinitionsDir, '..', 'support')
@@ -245,29 +230,29 @@ class ScenarioSynchronizer {
                         const stepDefinitions = fileContent.split('\n').map(Function.prototype.call, String.prototype.trim)
                             .filter((line) => re.test(line))
                             .map((line) => {
-                            const matches = re.exec(line);
-                            const keyword = matches[1];
-                            const patternInCode = matches[3];
-                            let pattern = matches[3];
-                            let isStringPattern = false;
-                            // String Pattern
-                            if (matches[2] === '\'') {
-                                isStringPattern = true;
-                                pattern = pattern.replace(/\$\w+/g, '<\\w+>');
-                                pattern = pattern.replace(/{\w+}/g, '<\\w+>');
-                            }
-                            const step = {
-                                filename: filePath.substr(folder.length + 1),
-                                keyword,
-                                regex: pattern,
-                                pattern: patternInCode,
-                                isStringPattern
-                            };
-                            if (matches[5].length) {
-                                step.regexFlags = matches[5];
-                            }
-                            return step;
-                        });
+                                const matches = re.exec(line);
+                                const keyword = matches[1];
+                                const patternInCode = matches[3];
+                                let pattern = matches[3];
+                                let isStringPattern = false;
+                                // String Pattern
+                                if (matches[2] === '\'') {
+                                    isStringPattern = true;
+                                    pattern = pattern.replace(/\$\w+/g, '<\\w+>');
+                                    pattern = pattern.replace(/{\w+}/g, '<\\w+>');
+                                }
+                                const step = {
+                                    filename: filePath.substr(folder.length + 1),
+                                    keyword,
+                                    regex: pattern,
+                                    pattern: patternInCode,
+                                    isStringPattern
+                                };
+                                if (matches[5].length) {
+                                    step.regexFlags = matches[5];
+                                }
+                                return step;
+                            });
                         this.implementedSteps = this.implementedSteps.concat(stepDefinitions);
                     }
                 });
@@ -277,7 +262,7 @@ class ScenarioSynchronizer {
     findImplementedStepDefinitionsRuby() {
         return __awaiter(this, void 0, void 0, function* () {
             this.implementedSteps = [];
-            mkdirp.sync(this.config.stepDefinitionsDir);
+            fs.mkdirSync(this.config.stepDefinitionsDir, {recursive: true})
             const foldersToScan = [
                 path.resolve(this.config.stepDefinitionsDir),
                 path.resolve(this.config.stepDefinitionsDir, '..', 'support')
@@ -298,20 +283,20 @@ class ScenarioSynchronizer {
                         const stepDefinitions = fileContent.split('\n').map(Function.prototype.call, String.prototype.trim)
                             .filter((line) => re.test(line))
                             .map((line) => {
-                            const matches = re.exec(line);
-                            const keyword = matches[1];
-                            const pattern = matches[3];
-                            const step = {
-                                filename: filePath.substr(folder.length + 1),
-                                keyword,
-                                regex: pattern,
-                                pattern
-                            };
-                            if (matches[5].length) {
-                                step.regexFlags = matches[5];
-                            }
-                            return step;
-                        });
+                                const matches = re.exec(line);
+                                const keyword = matches[1];
+                                const pattern = matches[3];
+                                const step = {
+                                    filename: filePath.substr(folder.length + 1),
+                                    keyword,
+                                    regex: pattern,
+                                    pattern
+                                };
+                                if (matches[5].length) {
+                                    step.regexFlags = matches[5];
+                                }
+                                return step;
+                            });
                         this.implementedSteps = this.implementedSteps.concat(stepDefinitions);
                     }
                 });
@@ -326,31 +311,31 @@ class ScenarioSynchronizer {
             if (!statuses && this.config.testrail.filters.custom_status) {
                 statuses = this.config.testrail.filters.custom_status;
             }
-            let testcases = [];
+            let tests = [];
             if (this.config.testrail.filters.run_id) {
-                testcases = yield this.testrailClient.getAllTests(this.config.testrail.filters.run_id);
-                this.debug(`Found #${testcases.length} cases on TestRail for run_id = ${this.config.testrail.filters.run_id}`);
+                tests = yield this.testrailClient.getAllTests(this.config.testrail.filters.run_id);
+                this.debug(`Found #${tests.length} cases on TestRail for run_id = ${this.config.testrail.filters.run_id}`);
                 // all runs in a test plan
             }
             else {
                 let uniqueCaseIds = [];
-                for (const planentry of this.plan.entries) {
-                    for (const run of planentry.runs) {
+                for (const planEntry of this.plan.entries) {
+                    for (const run of planEntry.runs) {
                         const testcasesOfRun = yield this.testrailClient.getAllTests(run.id);
                         this.debug(`Found #${testcasesOfRun.length} cases on TestRail for run_id = ${run.id}`);
-                        const newTestcases = testcasesOfRun.filter((t) => uniqueCaseIds.indexOf(t.case_id) === -1);
-                        testcases = testcases.concat(newTestcases);
-                        uniqueCaseIds = uniqueCaseIds.concat(newTestcases.map((t) => t.case_id));
+                        const newTests = testcasesOfRun.filter((t) => uniqueCaseIds.indexOf(t.case_id) === -1);
+                        tests = tests.concat(newTests);
+                        uniqueCaseIds = uniqueCaseIds.concat(newTests.map((t) => t.case_id));
                     }
                 }
             }
             if (this.config.tagResults) {
-                for (let test of testcases) {
+                for (let test of tests) {
                     test.results = (yield this.testrailClient.getResults(test.id, {limit: 3})).results
                     yield new Promise(f => setTimeout(f, 350))
                 }
             }
-            return testcases.filter((t) => !statuses || statuses.indexOf(t.custom_status) !== -1);
+            return tests.filter((t) => !statuses || statuses.indexOf(t.custom_status) !== -1);
         });
     }
     /**
@@ -464,37 +449,26 @@ class ScenarioSynchronizer {
     /**
      * Gets the .feature file content based on a test case from TestRail
      */
-    getFeatureFileContent(testcase, gherkin) {
+    getFeatureFileContent(test, gherkin) {
         let scenarioType = 'Scenario';
         if (gherkin.filter((line) => line.indexOf('Examples') !== -1).length > 0) {
             scenarioType = 'Scenario Outline';
         }
-        let content = 'Feature: ' + this.getLastSectionName(testcase.case_id) + '\n';
-        content += this.getTags(testcase);
-        content += this.config.indent + scenarioType + ': ' + testcase.title + '\n' + this.config.indent + this.config.indent;
+        let content = 'Feature: ' + test.title + '\n';
+        content += this.getTags(test);
+        content += this.config.indent + scenarioType + ': ' + test.title + '\n' + this.config.indent + this.config.indent;
         content += gherkin.join('\n' + this.config.indent + this.config.indent);
         return content;
     }
     /**
-     * Find the name of the last-child section of a test case
-     */
-    getLastSectionName(testcaseId) {
-        if (!this.caseSections[testcaseId]) {
-            return 'Cannot find feature name';
-        }
-        const sectionId = this.caseSections[testcaseId];
-        const section = this.sectionTree[sectionId];
-        return section.name;
-    }
-    /**
      * Gets relative path of where a testcase file should be located
      */
-    getRelativePath(testcaseId) {
-        if (!this.caseSections[testcaseId] || this.config.directoryStructure === undefined) {
+    getRelativePath(testcaseId, caseSections, sectionTree) {
+        if (!caseSections[testcaseId]) {
             return '';
         }
-        const sectionId = this.caseSections[testcaseId];
-        let section = this.sectionTree[sectionId];
+        const sectionId = caseSections[testcaseId];
+        let section = sectionTree[sectionId];
         let paths = [];
         // tslint:disable-next-line:no-constant-condition
         while (true) {
@@ -502,13 +476,13 @@ class ScenarioSynchronizer {
             if (section.parent_id === null) {
                 break;
             }
-            section = this.sectionTree[section.parent_id];
+            section = sectionTree[section.parent_id];
         }
         paths = paths.reverse();
         if (this.config.directoryStructure.skipRootFolder > 0) {
             paths = paths.splice(this.config.directoryStructure.skipRootFolder);
         }
-        return paths.join('/');
+        return paths.join(path.sep);
     }
     escapeStringRegexp(str) {
         const matchOperatorsRe = /[|\\{}()[\]^$+*?.]/g;
@@ -764,19 +738,19 @@ class ScenarioSynchronizer {
                     statuses = this.config.testrail.verifyFilters.custom_status;
                 }
             }
-            const testcases = yield this.getTests(statuses);
+            const tests = yield this.getTests(statuses);
             const errors = [];
-            for (const testcase of testcases) {
-                if (this.testFiles[testcase.case_id] === undefined) {
-                    errors.push(`"${testcase.title}" not found locally`);
+            for (const test of tests) {
+                if (this.testFiles[test.case_id] === undefined) {
+                    errors.push(`"${test.title}" not found locally`);
                     continue;
                 }
-                const gherkin = this.formatter.formatLinesFromTestrail(testcase);
-                const remoteFileContent = this.getFeatureFileContent(testcase, gherkin);
-                const featurePath = this.testFiles[testcase.case_id];
+                const gherkin = this.formatter.formatLinesFromTestrail(test, this.config.gherkinFormatterOptions);
+                const remoteFileContent = this.getFeatureFileContent(test, gherkin);
+                const featurePath = this.testFiles[test.case_id];
                 const localFileContent = fs.readFileSync(featurePath).toString().trim();
                 if (this.hasGherkinContentChanged(localFileContent, remoteFileContent, false)) {
-                    errors.push(`Local test case "${testcase.title}" is outdated`);
+                    errors.push(`Local test case "${test.title}" is outdated`);
                 }
             }
             return Promise.resolve(errors);
@@ -827,21 +801,40 @@ class ScenarioSynchronizer {
             this.output(chalk.green('Syncing with TestRail ...'));
             this.output('');
             this.skippedCount = 0;
-            const testcases = yield this.getTests();
-            for (const testcase of testcases) {
-                const slug = this.slugify(testcase.title);
-                const gherkin = this.formatter.getGherkinFromTestcase(testcase);
+            const tests = yield this.getTests();
+            let caseSections = {};
+            let sectionTree = {};
+            if (this.config.directoryStructure !== undefined) {
+                let cases = yield this.testrailClient.getAllCases(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id } )
+                for (let i = 0; i < cases.length; i++) {
+                    const caseId = cases[i].id;
+                    caseSections[caseId] = cases[i].section_id;
+                }
+                let sections = yield this.testrailClient.getAllSections(this.plan.project_id, { suite_id: this.plan.entries[0].suite_id });
+                for (let i = 0; i < sections.length; i++) {
+                    const sectionId = sections[i].id;
+                    const node = {
+                        name: sections[i].name,
+                        slug: this.slugify(sections[i].name),
+                        parent_id: sections[i].parent_id
+                    };
+                    sectionTree[sectionId] = node;
+                }
+            }
+            for (const test of tests) {
+                const slug = this.slugify(test.title);
+                const gherkin = this.formatter.getGherkinFromTestcase(test);
                 /* istanbul ignore else: isValidGherkin function covered in unit test */
                 if (gherkin.length === 0) {
-                    const log = `Empty gherkin content for TestCase #${testcase.case_id}-${slug}`;
+                    const log = `Empty gherkin content for TestCase #${test.case_id}-${slug}`;
                     this.output(chalk.yellow(log));
                 }
                 else if (this.formatter.isValidGherkin(gherkin)) {
-                    this.debug(`Valid gherkin for TestCase #${testcase.case_id}-${slug}`);
-                    yield this.synchronizeCase(testcase, this.getRelativePath(testcase.case_id));
+                    this.debug(`Valid gherkin for TestCase #${test.case_id}-${slug}`);
+                    yield this.synchronizeCase(test, this.getRelativePath(test.case_id, caseSections, sectionTree));
                 }
                 else {
-                    const log = `Invalid gherkin content for TestCase #${testcase.case_id}-${slug}`;
+                    const log = `Invalid gherkin content for TestCase #${test.case_id}-${slug}`;
                     this.output(chalk.yellow(log));
                     this.output(chalk.yellow(gherkin));
                 }
@@ -914,49 +907,49 @@ class ScenarioSynchronizer {
         }
         const gherkinContent1 = fileContent1.split('\n')
             .filter((line) => {
-            return !/^\s*(Feature: |@tcid:|Scenario( Outline)?: )/.test(line);
-        })
+                return !/^\s*(Feature: |@tcid:|Scenario( Outline)?: )/.test(line);
+            })
             .join('\n');
         const gherkinContent2 = fileContent2.split('\n')
             .filter((line) => {
-            return !/^\s*(Feature: |@tcid:|Scenario( Outline)?: )/.test(line);
-        })
+                return !/^\s*(Feature: |@tcid:|Scenario( Outline)?: )/.test(line);
+            })
             .join('\n');
         return gherkinContent1 !== gherkinContent2;
     }
     /**
      * Synchronize a test case from TestRail to the local filesystem
      */
-    synchronizeCase(testcase, relativePath) {
+    synchronizeCase(test, relativePath) {
         return __awaiter(this, void 0, void 0, function* () {
-            const basename = this.slugify(testcase.title);
-            const exists = (this.testFiles[testcase.case_id] !== undefined);
-            let featurePath = path.resolve(this.config.featuresDir + '/' + relativePath, basename + '.feature');
+            const basename = this.slugify(test.title);
+            const exists = (this.testFiles[test.case_id] !== undefined);
+            let featurePath = path.resolve(path.join(this.config.featuresDir, relativePath), basename + '.feature');
             const stepDefinitionsExtension = this.config.stepDefinitionsTemplate ?
                 path.extname(this.config.stepDefinitionsTemplate).substr(1) : '';
-            let stepDefinitionsPath = path.resolve(this.config.stepDefinitionsDir + '/' + relativePath, basename + '.' + stepDefinitionsExtension);
+            let stepDefinitionsPath = path.resolve(path.join(this.config.stepDefinitionsDir, relativePath), basename + '.' + stepDefinitionsExtension);
             featurePath = yield uniquefilename.get(featurePath, {});
             stepDefinitionsPath = yield uniquefilename.get(stepDefinitionsPath, {});
             // If the testcase is not on the filesystem, create the desired directory structure
             if (!exists) {
-                mkdirp.sync(this.config.featuresDir + '/' + relativePath);
+                fs.mkdirSync(path.join(this.config.featuresDir, relativePath), {recursive: true})
             }
-            const gherkin = this.formatter.formatLinesFromTestrail(testcase);
-            const remoteFileContent = this.getFeatureFileContent(testcase, gherkin);
+            const gherkin = this.formatter.formatLinesFromTestrail(test, this.config.gherkinFormatterOptions);
+            const remoteFileContent = this.getFeatureFileContent(test, gherkin);
             if (!exists) {
                 fs.writeFileSync(featurePath, remoteFileContent);
                 this.debug('Wrote .feature file');
                 if (this.config.stepDefinitionsTemplate) {
                     const content = this.getTestFileContent(gherkin, this.config.stepDefinitionsTemplate);
                     if (content !== null) {
-                        mkdirp.sync(this.config.stepDefinitionsDir + '/' + relativePath);
+                        fs.mkdirSync(path.join(this.config.stepDefinitionsDir, relativePath), {recursive: true})
                         fs.writeFileSync(stepDefinitionsPath, content);
                     }
                     this.output('  ' + chalk.green(`Creating ${basename}`));
                 }
             }
             else {
-                featurePath = this.testFiles[testcase.case_id];
+                featurePath = this.testFiles[test.case_id];
                 const localFileContent = fs.readFileSync(featurePath).toString().trim();
                 const fileChanged = this.hasGherkinContentChanged(localFileContent, remoteFileContent, true);
                 const diffDescription = fileChanged ? chalk.underline('is different') + ' than' : 'is the same as';
@@ -982,13 +975,13 @@ class ScenarioSynchronizer {
                 }
                 else if (this.config.overwrite.remote === true) {
                     this.output('  ' + chalk.green(`Pushing ${basename} to TestRail`));
-                    yield this.pushTestCaseToTestRail(testcase, localFileContent);
+                    yield this.pushTestCaseToTestRail(test, localFileContent);
                 }
                 else if (this.config.overwrite.remote === 'ask') {
                     this.showDiff(basename, remoteFileContent, localFileContent);
                     if ((yield this.promptForConfirmation('Do you want to override the TestRail version ?')) === true) {
                         this.output('  ' + chalk.green(`Pushing ${basename} to TestRail`));
-                        yield this.pushTestCaseToTestRail(testcase, localFileContent);
+                        yield this.pushTestCaseToTestRail(test, localFileContent);
                     }
                     else {
                         this.output('  ' + chalk.yellow(`Skipping ${basename}`));
@@ -1003,10 +996,16 @@ class ScenarioSynchronizer {
     }
     slugify(string) {
         return string
+            // replace spaces with dashes
             .split(' ')
             .join('-')
+            // remove accents/diacritics
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
+            // replace Windows file name prohibited double quotes with single quotes
+            .replace(/"/g, "'")
+            // remove the rest Windows file name prohibited symbols (which includes Linux "/")
+            .replace(/[<>:/\\|?*]/g, '')
             .toLowerCase();
     }
 }
